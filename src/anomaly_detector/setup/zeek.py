@@ -2,7 +2,9 @@ import os
 import sys
 import shutil
 import subprocess
+from datetime import datetime
 from pathlib import Path
+from config import Config
 
 
 def get_path(process_name = "zeek"):
@@ -12,7 +14,7 @@ def get_path(process_name = "zeek"):
     # PATH lookup
     found = shutil.which(process_name)
     if found:
-        return str(Path(found).resolve())
+        return Path(found).resolve()
 
     # fallbacks
     candidates = [
@@ -26,17 +28,17 @@ def get_path(process_name = "zeek"):
 
     for p in candidates:
         if p.is_file() and os.access(p, os.X_OK): # access = executable
-            return str(p.resolve())
+            return p.resolve()
 
     raise FileNotFoundError(
         "Could not find Zeek executable. Install Zeek and ensure `zeek` is on PATH"
     )
 
 def run(arg, out_dir):
-    parameters = [get_path(), arg.split()]
+    parameters = [str(get_path()), arg.split()]
     try:
         output = subprocess.run(parameters,
-                                cwd=out_dir.resolve(),
+                                cwd=out_dir,
                                 capture_output=True,
                                 text=True,
                                 check=True)
@@ -45,9 +47,15 @@ def run(arg, out_dir):
         print("Zeek command could not be ran.")
         print(e.output)
 
-def generate_logs(pcap_path, out_dir):
-    out = Path(out_dir)
+def generate_logs(pcap_path):
+    now = datetime.now().strftime("%d%m%y_%H%M%S")
+    out = Config.RUN_DIR / now
     out.mkdir(parents=True, exist_ok=True)
+    out = out.resolve()
 
-    cmd = f"-r {str(Path(pcap_path).resolve())} LogAscii::use_json=T"
+    cmd = f"-r {str(pcap_path)} LogAscii::use_json=T"
     run(cmd, out)
+
+
+def process_pcap(pcap_path):
+    generate_logs(pcap_path)
