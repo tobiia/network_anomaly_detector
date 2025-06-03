@@ -1,20 +1,11 @@
-# we are going to get the pcap into flows
-# using zeek
-# we can filter for specific protocols: 
-
-# iterate over every row, inserting them into the database
-
-import os
-import subprocess
-import sys
-
 import os
 import sys
 import shutil
+import subprocess
 from pathlib import Path
 
 
-def get_zeek_path(process_name = "zeek"):
+def get_path(process_name = "zeek"):
     if sys.platform.startswith("win"):
         raise RuntimeError("This resolver is for Linux/macOS only. Use WSL for Zeek on Windows.")
 
@@ -35,9 +26,28 @@ def get_zeek_path(process_name = "zeek"):
 
     for p in candidates:
         if p.is_file() and os.access(p, os.X_OK): # access = executable
-            return str(p.resolve()) # path = path.replace("\\", "/") if win?
+            return str(p.resolve())
 
     raise FileNotFoundError(
-        "Could not find Zeek executable. Install Zeek and ensure `zeek` is on PATH, "
-        "or set ZEEK_PATH=/full/path/to/zeek."
+        "Could not find Zeek executable. Install Zeek and ensure `zeek` is on PATH"
     )
+
+def run(arg, out_dir):
+    parameters = [get_path(), arg.split()]
+    try:
+        output = subprocess.run(parameters,
+                                cwd=out_dir.resolve(),
+                                capture_output=True,
+                                text=True,
+                                check=True)
+        return output
+    except subprocess.CalledProcessError as e:
+        print("Zeek command could not be ran.")
+        print(e.output)
+
+def generate_logs(pcap_path, out_dir):
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+
+    cmd = f"-r {str(Path(pcap_path).resolve())} LogAscii::use_json=T"
+    run(cmd, out)
