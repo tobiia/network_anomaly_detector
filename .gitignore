@@ -1,3 +1,5 @@
 *.csv
 *.pcap
 *.txt
+venv
+.venv
