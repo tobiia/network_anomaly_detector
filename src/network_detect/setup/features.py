@@ -16,6 +16,16 @@ def iter_json(path):
                 continue
             yield json.loads(line)
 
+def shannon_entropy(s):
+    if not s:
+        return 0.0
+    from math import log2
+    counts = {}
+    for ch in s:
+        counts[ch] = counts.get(ch, 0) + 1
+    n = len(s)
+    return -sum((c/n) * log2(c/n) for c in counts.values())
+
 def new_flow(uid):
     return {
         "uid": uid,
