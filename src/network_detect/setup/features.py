@@ -1,9 +1,6 @@
 # parse the log files to get the features
 
 import os
-import sys
-import shutil
-import subprocess
 from pathlib import Path
 from config import Config
 import json
@@ -25,6 +22,19 @@ def shannon_entropy(s):
         counts[ch] = counts.get(ch, 0) + 1
     n = len(s)
     return -sum((c/n) * log2(c/n) for c in counts.values())
+
+def tld_from_domain(domain):
+    if not domain or "." not in domain:
+        return ""
+    return domain.rsplit(".", 1)[-1].lower()
+
+def split_labels(domain):
+    if not domain:
+        return []
+    d = domain.strip(".").lower()
+    if not d:
+        return []
+    return [p for p in d.split(".") if p]
 
 def new_flow(uid):
     return {
@@ -122,8 +132,57 @@ def update_from_conn(f, rec: dict):
     f["id.orig_p"] = rec.get("id.orig_p") or ""
     f["id.resp_p"] = rec.get("id.resp_p") or ""
 
-def update_lof(flows_dict):
-    # need to iterate over each.log to get the basic __ features
-    # then calculate the extra features
-    # add all features to new_flow
-    pass
+def update_dns(f, rec, dns_events_by_host):
+    # f = flow uid, rec = specific record in log
+    ts = rec.get("ts")
+    host = rec.get("id.orig_h") or f.get("id.orig_h") or ""
+    query = (rec.get("query") or "").strip().lower()
+    qtype = (rec.get("qtype_name") or "").upper()
+    rcode = (rec.get("rcode_name") or "").upper()
+
+    f["dns_count"] = f.get("dns_count", 0) + 1
+
+    # rcode count
+    rc = f.get("dns_rcode_counts")
+    if rc is None:
+        rc = {}
+        f["dns_rcode_counts"] = rc
+    if rcode:
+        rc[rcode] = rc.get(rcode, 0) + 1
+
+    # qtype count
+    qt = f.get("dns_qtype_counts")
+    if qt is None:
+        qt = {}
+        f["dns_qtype_counts"] = qt
+    if qtype:
+        qt[qtype] = qt.get(qtype, 0) + 1
+
+    # lexical
+    if query: # should always have
+        labels = split_labels(query)
+
+        f["dns_query"] = query
+        f["dns_has_subdomain"] = 1 if len(labels) > 2 else 0
+        f["dns_tld"] = tld_from_domain(query)
+
+        f["dns_domain_len"] = len(query)
+
+        f["dns_num_dots"] = query.count(".")
+        f["dns_num_hyphens"] = query.count("-")
+        digits = sum(ch.isdigit() for ch in query)
+        f["dns_num_digits"] = digits
+        f["dns_num_pct"] = digits / max(len(query), 1)
+
+        f["dns_entropy"] = shannon_entropy(query)
+
+    # unique ips in answers
+    answers = rec.get("answers") or []
+    ans_set = f.get("dns_unique_ips")
+    if ans_set is None:
+        ans_set = set()
+        f["dns_unique_ips"] = ans_set
+
+    for a in answers:
+        a = (a or "").strip()
+        ans_set.add(a)
