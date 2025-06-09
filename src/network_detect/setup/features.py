@@ -139,6 +139,9 @@ def update_dns(f, rec, dns_events_by_host):
     query = (rec.get("query") or "").strip().lower()
     qtype = (rec.get("qtype_name") or "").upper()
     rcode = (rec.get("rcode_name") or "").upper()
+    ttl_values = rec.get("TTLs", [])
+    rtt = rec.get("rtt")
+    answers = rec.get("answers") or []
 
     f["dns_count"] = f.get("dns_count", 0) + 1
 
@@ -186,3 +189,23 @@ def update_dns(f, rec, dns_events_by_host):
     for a in answers:
         a = (a or "").strip()
         ans_set.add(a)
+
+    if ttl_values:
+        avg_ttl = sum(ttl_values) / len(ttl_values) if ttl_values else 0
+        
+        # Flag: Short TTLs (Fast Flux)
+        f["dns_has_short_ttl"] = int(any(t < 300 for t in ttl_values))  # < 5 min
+        
+        # Store TTL stats
+        f["dns_avg_ttl"] = avg_ttl
+
+        # Add event for window features (host-based)
+    if host and ts is not None:
+        dns_events_by_host[host].append({
+            "ts": float(ts),
+            "uid": f.get("uid"),
+            "query": query,
+            "tld": tld_from_domain(query) if query else "",
+            "rcode": rcode,
+            "qtype": qtype,
+        })
