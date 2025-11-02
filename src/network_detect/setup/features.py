@@ -71,8 +71,8 @@ def new_flow(uid):
         "resp_bytes": 0,
 
         # derived flow
-        "approx_fwd_pkt_len_mean": 0.0,
-        "approx_bwd_pkt_len_mean": 0.0,
+        "approx_fwd_pkt_len_mean": None,
+        "approx_bwd_pkt_len_mean": None,
         "flow_bytes_per_sec": 0.0,
         "pkts_per_sec": 0.0,
         "pkt_ratio": 0.0,
@@ -85,43 +85,35 @@ def new_flow(uid):
         "dns_unique_tlds": set(),
         "dns_unique_ips": set(),
 
-        "dns_entropy_sum": 0.0,
-        "dns_entropy_max": 0.0,
-        "dns_len_sum": 0,
-        "dns_len_max": 0,
-        "dns_num_pct_sum": 0.0,
-        "dns_num_pct_max": 0.0,
-        "dns_has_subdomain_count": 0,
-
-        # DNS derived
-        "dns_entropy_mean": 0.0,
-        "dns_len_mean": 0.0,
-        "dns_num_pct_mean": 0.0,
-        "dns_subdomain_rate": 0.0,
-        "dns_unique_domains_count": 0,
-        "dns_unique_tlds_count": 0,
-        "dns_unique_ips_count": 0,
+        # DNS derived -> done in window.py
+        "dns_entropy_mean": None,
+        "dns_entropy_max": None,
+        "dns_len_mean": None,
+        "dns_len_max": None,
+        "dns_num_pct_mean": None,
+        "dns_num_pct_max": None,
+        "dns_subdomain_rate": None,
 
         # TLS features
-        "tls_version": "",
-        "tls_cipher": "",
-        "tls_resumed": 0,
-        "tls_weak_cipher_flag": 0,
+        "tls_version": None,
+        "tls_cipher": None,
+        "tls_resumed": None,
+        "tls_weak_cipher_flag": None,
 
-        "tls_server_name": "",
-        "tls_sni_present": 0,
-        "tls_sni_len": 0,
-        "tls_sni_tld": "",
+        "tls_server_name": None,
+        "tls_sni_present": None,
+        "tls_sni_len": None,
+        "tls_sni_tld": None,
 
-        "tls_client_ext_count": 0,
-        "tls_server_ext_count": 0,
-        "tls_client_ext_enterprise_flag": 0,
+        "tls_client_ext_count": None,
+        "tls_server_ext_count": None,
+        "tls_client_ext_enterprise_flag": None,
 
         # fingerprints
-        "tls_ja3": "",
-        "tls_ja3s": "",
-        "tls_ja4": "",
-        "tls_ja4s": "",
+        "tls_ja3": None,
+        "tls_ja3s": None,
+        "tls_ja4": None,
+        "tls_ja4s": None,
     }
 
 
@@ -138,12 +130,20 @@ def update_from_conn(flow, rec):
     resp_pkts = int(rec.get("resp_pkts") or 0)
     orig_bytes = int(rec.get("orig_bytes") or 0)
     resp_bytes = int(rec.get("resp_bytes") or 0)
+    total_bytes = orig_bytes + resp_bytes
+    total_pkts = orig_pkts + resp_pkts
 
     flow["duration"] = duration
     flow["orig_pkts"] = int(rec.get("orig_pkts") or 0)
     flow["resp_pkts"] = int(rec.get("resp_pkts") or 0)
     flow["orig_bytes"] = int(rec.get("orig_bytes") or 0)
     flow["resp_bytes"] = int(rec.get("resp_bytes") or 0)
+
+    flow["approx_fwd_pkt_len_mean"] = (orig_bytes / orig_pkts) if orig_pkts > 0 else None
+    flow["approx_bwd_pkt_len_mean"] = (resp_bytes / resp_pkts) if resp_pkts > 0 else None
+    flow["flow_bytes_per_sec"] = total_bytes / duration if duration > 0 else None
+    flow["pkts_per_sec"] = total_pkts / duration if duration > 0 else None
+    flow["pkt_ratio"] = orig_pkts / (resp_pkts + 1)
 
 def update_dns(flow, rec, dns_events_by_host):
     # f = flow uid, rec = specific record in log
@@ -209,9 +209,10 @@ def update_dns(flow, rec, dns_events_by_host):
         })
 
 
-def update_tls(flow, rec):
-    flow["tls_version"] = rec.get("version") or ""
-    sni = (rec.get("server_name") or "").strip().lower()
+def update_tls(flow, rec:dict):
+    flow["tls_version"] = rec.get("version")
+    sni = rec.get("server_name")
+    sni = sni.strip().lower() if sni else None
     flow["tls_server_name"] = sni
     flow["tls_resumed"] = 1 if rec.get("resumed") else 0
 

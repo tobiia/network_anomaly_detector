@@ -62,34 +62,40 @@ def create_windows(flows):
 
         # everything needs to be atomic
         # must convert sets to int
-        domains_set = features.get("dns_unique_domains") or set()
-        tlds_set = features.get("dns_unique_tlds") or set()
-        ips_set = features.get("dns_unique_ips") or set()
-
-        features["dns_unique_domains_count"] = len(domains_set)
-        features["dns_unique_tlds_count"] = len(tlds_set)
-        features["dns_unique_ips_count"] = len(ips_set)
-
-        # delete the sets if they exist
-        if "dns_unique_domains" in features:
-            del features["dns_unique_domains"]
-        if "dns_unique_tlds" in features:
-            del features["dns_unique_tlds"]
-        if "dns_unique_ips" in features:
-            del features["dns_unique_ips"]
-
         dns_n = int(features.get("dns_count") or 0)
         # only do the following if this flow had associated dns messages
         if dns_n > 0:
+            domains_set = features.get("dns_unique_domains") or set()
+            tlds_set = features.get("dns_unique_tlds") or set()
+            ips_set = features.get("dns_unique_ips") or set()
+
+            features["dns_unique_domains_count"] = len(domains_set)
+            features["dns_unique_tlds_count"] = len(tlds_set)
+            features["dns_unique_ips_count"] = len(ips_set)
+
             features["dns_entropy_mean"] = float(features.get("dns_entropy_sum") or 0.0) / dns_n
             features["dns_len_mean"] = float(features.get("dns_len_sum") or 0) / dns_n
             features["dns_num_pct_mean"] = float(features.get("dns_num_pct_sum") or 0.0) / dns_n
         else:
-            # might be better to put null instead of 0
-            features["dns_entropy_mean"] = 0.0
-            features["dns_len_mean"] = 0.0
-            features["dns_num_pct_mean"] = 0.0
-            features["dns_subdomain_rate"] = 0.0
+            features["dns_entropy_mean"] = None
+            features["dns_entropy_max"] = None
+            features["dns_len_mean"] = None
+            features["dns_len_max"] = None
+            features["dns_num_pct_mean"] = None
+            features["dns_num_pct_max"] = None
+            features["dns_subdomain_rate"] = None
+            features["dns_unique_domains_count"] = None
+            features["dns_unique_tlds_count"] = None
+            features["dns_unique_ips_count"] = None
+
+        # REVIEW delete not part of schema
+        del features["dns_unique_domains"]
+        del features["dns_unique_tlds"]
+        del features["dns_unique_ips"]
+        del features["dns_entropy_sum"]
+        del features["dns_len_sum"]
+        del features["dns_num_pct_sum"]
+        del features["dns_has_subdomain_count"]
 
         rows.append(features)
 
