@@ -1,8 +1,57 @@
 from collections import defaultdict
 from pathlib import Path
+from typing import Dict, Generator, Iterator, Tuple
+
 from config import Config
 import re
 from datetime import datetime
+import json
+import csv
+
+def iter_json(path: Path):
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                yield json.loads(line)
+    except FileNotFoundError:
+        return
+        
+# dhunter -> ParseZeekLogs
+def iter_csv(path: Path):
+    try:
+        options = {}
+        with path.open("r", encoding="utf-8") as f:
+            row = f.readline().strip()
+            while row.startswith("#"):
+                # parse the option # rows out
+                if row.startswith("#separator"):
+                    key = str(row[1:].split(" ")[0])
+                    value = str.encode(row[1:].split(" ")[1].strip()).decode('unicode_escape')
+                    options[key] = value
+                elif row.startswith("#"):
+                    key = str(row[1:].split(options.get("separator"))[0])
+                    value = row[1:].split(options.get("separator"))[1:]
+                    options[key] = value
+                row = f.readline().strip()
+            
+            # dict should not include rows w/o info
+            empty_val = options.get("empty_field", "(empty)")
+            unset_val = options.get("unset_field", "-")
+        
+            dict_reader = csv.DictReader(
+                f, 
+                fieldnames=options.get("fields"), 
+                delimiter=options.get("separator", "\t")
+            )
+            for row in dict_reader:
+                filtered_row = {}
+                for key, value in row.items():
+                    if value not in [empty_val, unset_val]:
+                        filtered_row[key] = value
+                yield filtered_row
+    except FileNotFoundError:
+        return
 
 def shannon_entropy(s):
     if not s:

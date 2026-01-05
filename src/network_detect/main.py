@@ -1,4 +1,4 @@
-from setup.zeek import process_pcap
+from setup.zeek import process_file
 from parse.parse_log import ParseLogs
 from pathlib import Path
 from config import Config

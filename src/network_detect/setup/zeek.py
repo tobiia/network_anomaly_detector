@@ -64,5 +64,5 @@ def generate_logs(pcap_path: Path) -> str:
     return run(args, out)
 
 
-def process_pcap(pcap_path: Path) -> str:
-    return generate_logs(pcap_path)
+def process_file(file_path: Path) -> str:
+    return generate_logs(file_path)

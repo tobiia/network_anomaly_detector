@@ -27,6 +27,7 @@ class DNSConnection(Connection):
     q_conse_digits_ratio: float = 0.0
     
     # answer features
+    num_ans: int = 0
     ans_len_mean: float = 0.0
     ans_entropy_mean: float = 0.0
     ttl_mean: float = 0.0
@@ -59,6 +60,7 @@ class DNSConnection(Connection):
         
         # snswer features
         if self.answers:
+            self.num_ans = len(self.answers)
             self.ans_len_mean = sum(len(ans) for ans in self.answers) / len(self.answers)
 
             entropies = [shannon_entropy(answers) for answers in self.answers]
@@ -95,7 +97,7 @@ class DNSConnection(Connection):
             rcode = record.get("rcode", 0),
             answers = record.get("answers", []),
             ttls = record.get("TTLs", []),
-            rejected = bool(record.get("query", 0)),
+            rejected = int(record.get("rejected", 0)),
         )
 
         # REVIEW derived fields not in __init__ --> change later
