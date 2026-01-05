@@ -9,8 +9,7 @@ redef LogAscii::use_json = T;
 @load base/protocols/ssl
 # below extends SSL::Info
 @load policy/protocols/ssl/ssl-log-ext
+@load base/protocols/ssl/files.zeek
 
 # load packages for fingerprinting
-@load ja3/ja3
-@load ja3/ja3s
 @load ja4

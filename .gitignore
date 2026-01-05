@@ -4,3 +4,6 @@
 venv
 .venv
 *.log
+__pycache__
+runs
+*.json
