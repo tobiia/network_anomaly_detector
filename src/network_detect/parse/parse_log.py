@@ -1,73 +1,91 @@
 import json
-import csv
 from pathlib import Path
-from typing import Dict, Generator, Iterator, Tuple
+from typing import Dict, Tuple
 import pandas as pd
 
-from utils import iter_json, iter_csv
+from utils import iter_log
 from config import Config
-from .connect import Connection
+from .base_connection import Connection
 from .dns_connection import DNSConnection
-from .ssl_connection import SSLConnection
+from .tls_connection import TLSConnection
 
 class ParseLogs:
     def __init__(self):
         self.connections: Dict[str, Connection] = {}
         self.dns_connections: Dict[str, Connection] = {}
-        self.ssl_connections: Dict[str, Connection] = {}
+        self.tls_connections: Dict[str, Connection] = {}
 
-    def parse_logs(self, run_id: str, format: str = "json") -> Tuple[Dict[str, Connection], Dict[str, Connection]]:
-
-        if format == "csv":
-            generator = iter_csv
-        else:
-            generator = iter_json
-
-        run_path = Path(Config.RUNS_DIR) / run_id
+    def parse_logs(self, log_direct: Path) -> Tuple[Dict[str, Connection], Dict[str, Connection]]:
         
         self.connections.clear()
+        self.dns_connections.clear()
+        self.tls_connections.clear()
         
-        conn_path = run_path / "conn.log"
-        self._parse_conn_log(conn_path, generator)
+        conn_path = log_direct / "conn.log"
+        self._add_conn_info(conn_path)
         
         # append DNS info
-        dns_path = run_path / "dns.log"
+        dns_path = log_direct / "dns.log"
         if dns_path.exists():
-            self._add_dns_info(dns_path, generator)
+            self._add_dns_info(dns_path)
         
-        # append SSL info
-        ssl_path = run_path / "ssl.log"
-        if ssl_path.exists():
-            self._add_ssl_info(ssl_path, generator)
+        # append tls info
+        tls_path = log_direct / "ssl.log"
+        if tls_path.exists():
+            self._add_tls_info(tls_path)
         
-        # Store in database
-        #self._store_in_database() TODO
-        
-        return self.dns_connections, self.ssl_connections
+        return self.dns_connections, self.tls_connections
     
-    def _parse_conn_log(self, conn_path: Path, generator) -> None:
-        for record in generator(conn_path):
-            conn = Connection.parse_conn_record(record)
+    def parse_dns_logs(self, log_direct: Path) -> Dict[str, Connection]:
+        self.connections.clear()
+        self.dns_connections.clear()
+
+        conn_path = log_direct / "conn.log"
+        self._add_conn_info(conn_path)
+
+        #FIXME - replace with error
+        dns_path = log_direct / "dns.log"
+        if dns_path.exists():
+            self._add_dns_info(dns_path)
+
+        return self.dns_connections
+
+    def parse_tls_logs(self, log_direct: Path) -> Dict[str, Connection]:
+        self.connections.clear()
+        self.tls_connections.clear()
+        
+        conn_path = log_direct / "conn.log"
+        self._add_conn_info(conn_path)
+
+        tls_path = log_direct / "ssl.log"
+        if tls_path.exists():
+            self._add_tls_info(tls_path)
+        
+        return self.tls_connections
+    
+    def _add_conn_info(self, conn_path: Path) -> None:
+        for record in iter_log(conn_path):
+            conn = Connection.from_zeek_record(record)
             if conn:
                 self.connections[conn.uid] = conn
     
-    def _add_dns_info(self, dns_path: Path, generator) -> None:
-        for record in generator(dns_path):
+    def _add_dns_info(self, dns_path: Path) -> None:
+        for record in iter_log(dns_path):
             conn_uid = record.get("uid", "")
             if conn_uid and conn_uid in self.connections.keys():
                 conn = self.connections[conn_uid]
-                dns_conn = DNSConnection.parse_dns_record(record, conn)
+                dns_conn = DNSConnection.from_dns_record(record, conn)
                 if dns_conn:
                     self.dns_connections[dns_conn.uuid] = dns_conn
     
-    def _add_ssl_info(self, ssl_path: Path, generator) -> None:
-        for record in generator(ssl_path):
+    def _add_tls_info(self, tls_path: Path) -> None:
+        for record in iter_log(tls_path):
             conn_uid = record.get("uid", "")
             if conn_uid and conn_uid in self.connections.keys():
                 conn = self.connections[conn_uid]
-                ssl_conn = SSLConnection.parse_ssl_record(record, conn)
-                if ssl_conn:
-                    self.ssl_connections[ssl_conn.uuid] = ssl_conn
+                tls_conn = TLSConnection.parse_tls_record(record, conn)
+                if tls_conn:
+                    self.tls_connections[tls_conn.uuid] = tls_conn
     
     def to_dataframe(self, conn_dict: Dict[str, Connection]) -> pd.DataFrame:
         rows = []
@@ -92,6 +110,7 @@ class ParseLogs:
                 "service": connection.service,
                 "has_dns": connection.has_dns,
                 "has_tls": connection.has_tls,
+                "label": connection.label,
                 
                 "flow_bytes_per_sec": connection.flow_bytes_per_sec,
                 "pkts_per_sec": connection.pkts_per_sec,
@@ -104,47 +123,53 @@ class ParseLogs:
             if isinstance(connection, DNSConnection):
                 row.update({
                     "uuid": connection.uuid,
-                    "dns_query": connection.query,
-                    "dns_qclass": connection.qclass,
-                    "dns_qtype": connection.qtype,
-                    "dns_rcode": connection.rcode,
-                    "dns_rejected": connection.rejected,
+                    "query": connection.query,
+                    "qclass": connection.qclass,
+                    "qtype": connection.qtype,
+                    "rcode": connection.rcode,
+                    "rejected": connection.rejected,
+                    "answers": json.dumps(connection.answers),
+                    "ttls": json.dumps(connection.ttls),
                     
-                    "dns_q_len": connection.q_len,
-                    "dns_q_tld": connection.q_tld,
-                    "dns_q_max_subd_len": connection.q_max_subd_len,
-                    "dns_q_min_subd_len": connection.q_min_subd_len,
-                    "dns_q_entropy": connection.q_entropy,
-                    "dns_q_num_levels": connection.q_num_levels,
-                    "dns_q_dig_ratio": connection.q_dig_ratio,
-                    "dns_q_consec_conso_ratio": connection.q_consec_conso_ratio,
-                    "dns_q_alternate_ratio": connection.q_alternate_ratio,
-                    "dns_q_conse_digits_ratio": connection.q_conse_digits_ratio,
+                    "q_len": connection.q_len,
+                    "q_tld": connection.q_tld,
+                    "q_max_subd_len": connection.q_max_subd_len,
+                    "q_min_subd_len": connection.q_min_subd_len,
+                    "q_entropy": connection.q_entropy,
+                    "q_num_levels": connection.q_num_levels,
+                    "q_dig_ratio": connection.q_dig_ratio,
+                    "q_consec_conso_ratio": connection.q_consec_conso_ratio,
+                    "q_alternate_ratio": connection.q_alternate_ratio,
+                    "q_conse_digits_ratio": connection.q_conse_digits_ratio,
 
                     "num_ans": connection.num_ans,
-                    "dns_ans_len_mean": connection.ans_len_mean,
-                    "dns_ans_entropy_mean": connection.ans_entropy_mean,
-                    "dns_ttl_mean": connection.ttl_mean,
+                    "ans_len_mean": connection.ans_len_mean,
+                    "ans_entropy_mean": connection.ans_entropy_mean,
+                    "ttl_mean": connection.ttl_mean,
                 })
             
-            # ssl feats not incl list
-            if isinstance(connection, SSLConnection):
+            # tls feats not incl list
+            if isinstance(connection, TLSConnection):
                 row.update({
                     "uuid": connection.uuid,
-                    "ssl_version": connection.version,
-                    "ssl_cipher": connection.cipher,
-                    "ssl_server_name": connection.server_name,
-                    "ssl_resumed": connection.resumed,
-                    "ssl_established": connection.established,
+                    "version": connection.version,
+                    "cipher": connection.cipher,
+                    "server_name": connection.server_name,
+                    "resumed": connection.resumed,
+                    "established": connection.established,
                     "ssl_history": connection.ssl_history,
-                    "ssl_ja4": connection.ja4,
-                    "ssl_ja4s": connection.ja4s,
+                    "ja4": connection.ja4,
+                    "ja4s": connection.ja4s,
+                    "cert_chain_fps": json.dumps(connection.cert_chain_fps),
+                    "client_ciphers": json.dumps(connection.client_ciphers),
+                    "ssl_client_exts": json.dumps(connection.ssl_client_exts),
+                    "ssl_server_exts": json.dumps(connection.ssl_server_exts),
                     
-                    "ssl_num_cli_exts": connection.num_cli_exts,
-                    "ssl_num_srv_exts": connection.num_srv_exts,
-                    "ssl_num_certs": connection.num_certs,
+                    "num_cli_exts": connection.num_cli_exts,
+                    "num_srv_exts": connection.num_srv_exts,
+                    "num_certs": connection.num_certs,
                     
-                    "ssl_weak_cipher": connection.weak_cipher,
+                    "weak_cipher": connection.weak_cipher,
                 })
             
             rows.append(row)

@@ -1,6 +1,7 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
-from uuid import uuid4
+from pprint import pprint
+from typing import Optional
 
 @dataclass
 class Connection:
@@ -22,6 +23,7 @@ class Connection:
     service: str = ""
     has_dns: int = 0
     has_tls: int = 0
+    label: Optional[str] = field(default=None)
     
     # derived features
     total_bytes: int = 0
@@ -50,37 +52,44 @@ class Connection:
 
         self.approx_bwd_pkt_len_mean = self.resp_bytes / self.resp_pkts if self.resp_pkts > 0 else 0
 
-    @staticmethod
-    def parse_conn_record(record: dict):
+    # must be a class method b/c dataclasses only generate _init_ after class is fully def
+    # so staticmethod won't work since it'll need that
+    @classmethod
+    def from_zeek_record(cls, record: dict):
         try:
             ts = float(record.get("ts", 0))
             ts_iso = datetime.fromtimestamp(ts).isoformat()
-            
-            conn = Connection(
-                uuid = "",
-                uid = record.get("uid", ""),
-                ts = ts,
-                ts_iso = ts_iso,
-                duration = record.get("duration", 0.0),
-                proto = record.get("proto", ""),
-                orig_h = record.get("id.orig_h", ""),
-                resp_h = record.get("id.resp_h", ""),
-                orig_p = record.get("id.orig_p", 0),
-                resp_p = record.get("id.resp_p", 0),
-                orig_pkts = record.get("orig_pkts", 0),
-                resp_pkts = record.get("resp_pkts", 0),
-                orig_bytes = record.get("orig_bytes", 0),
-                resp_bytes = record.get("resp_bytes", 0),
-                missed_bytes = record.get("missed_bytes", 0),
-                service = record.get("service", ""),
-                has_dns = 0,
-                has_tls = 0,
-            )
-            
+            label = record.get("label", None)
+            label = label.lower() if label else None
+
+            # have to create empty instance to deal with dataclass __init__ issue
+            conn = cls()
+            conn.uuid = record.get("uid", "")
+            conn.uid = record.get("uid", "")
+            conn.ts = ts
+            conn.ts_iso = ts_iso
+            conn.duration = float(record.get("duration", 0.0))
+            conn.proto = record.get("proto", "").lower()
+            conn.orig_h = record.get("id_orig_h", "")
+            conn.resp_h = record.get("id_resp_h", "")
+            conn.orig_p = int(record.get("id_orig_p", 0))
+            conn.resp_p = int(record.get("id_resp_p", 0))
+            conn.orig_pkts = int(record.get("orig_pkts", 0))
+            conn.resp_pkts = int(record.get("resp_pkts", 0))
+            conn.orig_bytes = int(record.get("orig_bytes", 0))
+            conn.resp_bytes = int(record.get("resp_bytes", 0))
+            conn.missed_bytes = int(record.get("missed_bytes", 0))
+            conn.service = record.get("service", "").lower()
+            conn.has_dns = 0
+            conn.has_tls = 0
+            conn.label = label
+
             conn._calculate_derived_features()
             
             return conn
             
-        except (KeyError, ValueError, TypeError) as e:
-            print(f"Error parsing conn record: {e}")
+        except Exception as e:
+            print(f"Error parsing conn.log: {e}")
+            print(f"Record data: ", end=" ")
+            pprint(record)
             return None

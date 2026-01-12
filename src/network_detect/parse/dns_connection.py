@@ -1,8 +1,9 @@
 from dataclasses import dataclass, field
 from typing import List
 from uuid import uuid4
-from .connect import Connection
+from .base_connection import Connection
 from utils import shannon_entropy, tld, subdomain_labels, consecutive_consonant_ratio, letter_digit_alternation_ratio, consecutive_digits_ratio
+from pprint import pprint
 
 @dataclass
 class DNSConnection(Connection):
@@ -32,8 +33,7 @@ class DNSConnection(Connection):
     ans_entropy_mean: float = 0.0
     ttl_mean: float = 0.0
     
-    def _calculate_dns_features(self) -> None:
-        # query
+    def _calculate_dns_features(self) -> None:# query
         if self.query:
             self.q_len = len(self.query)
         
@@ -61,62 +61,61 @@ class DNSConnection(Connection):
         # snswer features
         if self.answers:
             self.num_ans = len(self.answers)
-            self.ans_len_mean = sum(len(ans) for ans in self.answers) / len(self.answers)
-
-            entropies = [shannon_entropy(answers) for answers in self.answers]
+            self.ans_len_mean = sum(len(answer) for answer in self.answers) / self.num_ans
+            entropies = [shannon_entropy(answer) for answer in self.answers]
             self.ans_entropy_mean = sum(x for x in entropies) / len(entropies)
+
         if self.ttls:
             self.ttl_mean = sum(self.ttls) / len(self.ttls)
 
     @classmethod
     def _from_conn(cls, conn: Connection, record: dict):
-        dns_conn = cls(
-            uuid = str(uuid4()),
-            uid = conn.uid,
-            ts = conn.ts,
-            ts_iso = conn.ts_iso,
-            duration = conn.duration,
-            proto = conn.proto,
-            orig_h = conn.orig_h,
-            resp_h = conn.resp_h,
-            orig_p = conn.orig_p,
-            resp_p = conn.resp_p,
-            orig_pkts = conn.orig_pkts,
-            resp_pkts = conn.resp_pkts,
-            orig_bytes = conn.orig_bytes,
-            resp_bytes = conn.resp_bytes,
-            missed_bytes = conn.missed_bytes,
-            service = conn.service,
-            has_dns = 1,
-            has_tls = 0,
 
-            # dns-specific fields
-            query = record.get("query", ""),
-            qclass = record.get("qclass", 1),
-            qtype = record.get("qtype", 1),
-            rcode = record.get("rcode", 0),
-            answers = record.get("answers", []),
-            ttls = record.get("TTLs", []),
-            rejected = int(record.get("rejected", 0)),
-        )
+        dns_conn = cls()
+        label = record.get("label", conn.label)
+        label = label.lower() if label else None
 
-        # REVIEW derived fields not in __init__ --> change later
-        dns_conn.total_bytes = conn.total_bytes
-        dns_conn.total_pkts = conn.total_pkts
-        dns_conn.approx_fwd_pkt_len_mean = conn.approx_fwd_pkt_len_mean
-        dns_conn.flow_bytes_per_sec = conn.flow_bytes_per_sec
-        dns_conn.pkts_per_sec = conn.pkts_per_sec
-        dns_conn.pkt_ratio = conn.pkt_ratio
-        dns_conn.approx_bwd_pkt_len_mean = conn.approx_bwd_pkt_len_mean
+        dns_conn.uuid = str(uuid4())
+        dns_conn.uid = conn.uid
+        dns_conn.ts = conn.ts
+        dns_conn.ts_iso = conn.ts_iso
+        dns_conn.duration = conn.duration
+        dns_conn.proto = conn.proto
+        dns_conn.orig_h = record.get("id_orig_h", conn.orig_h)
+        dns_conn.resp_h = record.get("id_resp_h", conn.resp_h)
+        dns_conn.orig_p = record.get("id_orig_p", conn.orig_p)
+        dns_conn.resp_p = record.get("id_resp_p", conn.resp_p)
+        dns_conn.orig_pkts = conn.orig_pkts
+        dns_conn.resp_pkts = conn.resp_pkts
+        dns_conn.orig_bytes = conn.orig_bytes
+        dns_conn.resp_bytes = conn.resp_bytes
+        dns_conn.missed_bytes = conn.missed_bytes
+        dns_conn.service = "dns"
+        dns_conn.has_dns = 1
+        dns_conn.has_tls = 0
+        dns_conn.label = label
+
+        # dns-specific fields
+        dns_conn.query = record.get("query", "")
+        dns_conn.qclass = int(record.get("qclass", 1))
+        dns_conn.qtype = int(record.get("qtype", 1))
+        dns_conn.rcode = int(record.get("rcode", 0))
+        dns_conn.answers = record.get("answers", [])
+        dns_conn.ttls = record.get("TTLs", [])
+        dns_conn.rejected = 1 if record.get("rejected", False) else 0
+
+        dns_conn._calculate_derived_features()
 
         return dns_conn
     
-    @staticmethod
-    def parse_dns_record(rec: dict, conn: Connection):
+    @classmethod
+    def from_dns_record(cls, record: dict, conn: Connection):
         try:
-            dns_conn = DNSConnection._from_conn(conn, rec)
+            dns_conn = cls._from_conn(conn, record)
             dns_conn._calculate_dns_features()
             return dns_conn
         except Exception as e:
-            print(f"Error parsing DNS: {e}")
+            print(f"Error parsing dns.log: {e}")
+            print(f"Record data: ", end=" ")
+            pprint(record)
             return None
