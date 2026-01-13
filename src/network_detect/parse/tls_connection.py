@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
 from pprint import pprint
-from typing import List
 from uuid import uuid4
 from .base_connection import Connection
 from utils import weak_cipher
@@ -15,12 +14,12 @@ class TLSConnection(Connection):
     ssl_history: str = ""
     ja4: str = ""
     ja4s: str = ""
-    cert_chain_fps: List[str] = field(default_factory=list)
+    cert_chain_fps: list[str] = field(default_factory=list)
     
     # weak = RC4, 3DES / DES / RC2 / IDEA, TLS_RSA
-    client_ciphers: List[str] = field(default_factory=list)
-    ssl_client_exts: List[str] = field(default_factory=list)
-    ssl_server_exts: List[str] = field(default_factory=list)
+    client_ciphers: list[str] = field(default_factory=list)
+    ssl_client_exts: list[str] = field(default_factory=list)
+    ssl_server_exts: list[str] = field(default_factory=list)
     
     # counts
     num_cli_exts: int = 0

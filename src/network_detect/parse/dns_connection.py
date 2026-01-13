@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from typing import List
 from uuid import uuid4
 from .base_connection import Connection
 from utils import shannon_entropy, tld, subdomain_labels, consecutive_consonant_ratio, letter_digit_alternation_ratio, consecutive_digits_ratio
@@ -11,8 +10,8 @@ class DNSConnection(Connection):
     qclass: int = 1     # default: in
     qtype: int = 1      # A
     rcode: int = 0      # NOERROR
-    answers: List[str] = field(default_factory=list)
-    ttls: List[float] = field(default_factory=list)
+    answers: list[str] = field(default_factory=list)
+    ttls: list[float] = field(default_factory=list)
     rejected: int = 0
     
     # query features

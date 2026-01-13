@@ -19,7 +19,7 @@ from main import load_model_package, ensure_features  # keep your helpers
 
 def init_state() -> None:
     # saving parsed dfs (pcaps) + the current pcap active/the user is looking at
-    # state["pcaps"][pcap_name] = {"dns": df, "tls": df}
+    # session_state["pcaps"][pcap_name] = {"dns": df, "tls": df}
     if "pcaps" not in st.session_state:
         st.session_state["pcaps"] = {}
     if "active_pcap" not in st.session_state:
@@ -34,10 +34,8 @@ def store_parsed_dfs(pcap_name: str, dns_df: DataFrame, tls_df: DataFrame) -> No
     st.session_state["active_pcap"] = pcap_name
 
 
-def get_active_record() -> Optional[Dict]:
+def get_active_record() -> Dict:
     name = st.session_state.get("active_pcap")
-    if not name:
-        return None
     return st.session_state["pcaps"].get(name)
 
 
@@ -46,10 +44,11 @@ def get_active_record() -> Optional[Dict]:
 def predict_with_threshold(
     df: DataFrame,
     package: Dict,
-    threshold: float,
 ) -> DataFrame:
+    
     model = package["model"]
     expected_features = package["features"]
+    threshold = package["threshold"]
 
     df_feat = ensure_features(df, expected_features)[expected_features]
 
@@ -115,3 +114,72 @@ def preferred_columns(df: DataFrame) -> list[str]:
     ]
     cols = [c for c in preferred if c in df.columns]
     return cols if cols else df.columns.tolist()
+
+# APPLICATION
+
+def main():
+    st.set_page_config(page_title="Infer-IDS", layout="wide")
+    st.title("Infer-IDS")
+
+    init_state()
+
+    with st.sidebar:
+        st.header("Settings")
+        flow_choice = st.selectbox("View", ["dns", "tls"])
+        st.divider()
+
+    # uploader
+    st.subheader("Upload PCAP File")
+    pcap = st.file_uploader("Upload pcap file to analyze", "pcap")
+
+    if pcap is not None:
+        with st.spinner(f"Parsing {pcap.name} with Zeek..."):
+            try:
+                # FIXME -- can't get pcap path using file_uploader
+                dns_df, tls_df = pcap_to_df(pcap_path)
+            except Exception as e:
+                st.error(f"Failed parsing {pcap.name}: {e}")
+                return
+
+        store_parsed_dfs(pcap.name, dns_df, tls_df)
+        st.success(f"Loaded: {pcap.name}")
+    else:
+        st.warning("Something went wrong while parsing pcap file")
+        return
+
+    # retrieve dfs for this pcap
+    record = get_active_record() # dict of the 2 dfs
+    if record is None:
+        st.info("Upload a PCAP file to begin.")
+        return
+
+    # display df user has chosen (flow_choice = button, dns or tls)
+    df_current = record[flow_choice]
+
+    st.divider()
+    st.subheader(f"{flow_choice.upper()} View")
+
+    pkg_path = get_model_path(flow_choice)
+
+    left, right = st.columns([1, 2])
+
+    with left:
+        run_predict = st.button("Run / Update Predictions")
+
+    already_pred = bool(df_current["pred"])
+
+    # update df with classification scores
+    if run_predict:
+        try:
+            package = load_model_package(pkg_path)
+            df_pred = predict_with_threshold(df_current, package)
+        except Exception as e:
+            st.error(f"Prediction failed: {e}")
+            return
+        
+        # save mutated df in session state
+        record[flow_choice] = df_pred
+
+
+if __name__ == "__main__":
+    main()
