@@ -2,6 +2,7 @@ from typing import Dict
 import joblib
 from pathlib import Path
 from pandas import DataFrame
+from pprint import pprint
 
 from setup.zeek import process_file
 from parse.parse_log import ParseLogs
@@ -51,17 +52,21 @@ def main():
         
         dns_df = parser.to_dataframe(dns_connections)
         tls_df = parser.to_dataframe(tls_connections)
-
+        
         dns_package = load_model_package(Config.MODEL_DIR / "dns_model_package.pkl")
         tls_package = load_model_package(Config.MODEL_DIR / "tls_model_package.pkl")
-
+        
         ensure_features(dns_df, dns_package["features"])
         ensure_features(tls_df, tls_package["features"])
-
+        
         dns_df = add_predictions(dns_df, dns_package)
         tls_df = add_predictions(tls_df, tls_package)
 
-        return dns_df, tls_df
+        pprint(dns_df.head(5))
+        pprint(tls_df.head(5))
     
     except Exception as e:
         print(f"Error executing main process: {e}")
+
+if __name__ == "__main__":
+    main()

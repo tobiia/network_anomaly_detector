@@ -1,6 +1,6 @@
 # Infer-IDS - Malicious Network Traffic Detection
 
-Network Detect is a machine learning-based system for identifying malicious DNS and TLS network traffic. It analyzes network flows captured in PCAP format, extracts behavioral features, and uses trained XGBoost classifiers to detect potential threats with high recall performance.
+Infer-IDS is a machine learning-based system for identifying malicious DNS and TLS network traffic. It analyzes network flows captured in PCAP format, extracts behavioral features, and uses trained XGBoost classifiers to detect potential threats with high recall performance.
 
 ## Installation
 

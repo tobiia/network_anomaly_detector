@@ -16,25 +16,28 @@ class ParseLogs:
         self.tls_connections: Dict[str, Connection] = {}
 
     def parse_logs(self, log_direct: Path) -> Tuple[Dict[str, Connection], Dict[str, Connection]]:
-        
-        self.connections.clear()
-        self.dns_connections.clear()
-        self.tls_connections.clear()
-        
-        conn_path = log_direct / "conn.log"
-        self._add_conn_info(conn_path)
-        
-        # append DNS info
-        dns_path = log_direct / "dns.log"
-        if dns_path.exists():
-            self._add_dns_info(dns_path)
-        
-        # append tls info
-        tls_path = log_direct / "ssl.log"
-        if tls_path.exists():
-            self._add_tls_info(tls_path)
-        
-        return self.dns_connections, self.tls_connections
+        try:
+            self.connections.clear()
+            self.dns_connections.clear()
+            self.tls_connections.clear()
+            
+            conn_path = log_direct / "conn.log"
+            self._add_conn_info(conn_path)
+
+            # append DNS info
+            dns_path = log_direct / "dns.log"
+            if dns_path.exists():
+                self._add_dns_info(dns_path)
+            
+            # append tls info
+            tls_path = log_direct / "ssl.log"
+            if tls_path.exists():
+                self._add_tls_info(tls_path)
+            
+            return self.dns_connections, self.tls_connections
+        except Exception as e:
+            print(f"Error parsing pcap: {e}")
+            raise e
     
     def parse_dns_logs(self, log_direct: Path) -> Dict[str, Connection]:
         self.connections.clear()
