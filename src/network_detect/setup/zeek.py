@@ -35,7 +35,7 @@ def get_path(process_name: str = "zeek") -> Path:
         "Could not find Zeek executable. Install Zeek and ensure `zeek` is on PATH"
     )
 
-def run(args: List[str], out_dir: Path) -> Path | None:
+def run(args: List[str], out_dir: Path) -> Path:
     try:
         output = subprocess.run(args,
                                     cwd=out_dir,
@@ -45,12 +45,11 @@ def run(args: List[str], out_dir: Path) -> Path | None:
         return out_dir
     except subprocess.CalledProcessError as e:
         print(f"Zeek command could not be ran")
-        print(e.stderr)
-    return None
+        raise e
 
-def generate_logs(pcap_path: Path) -> Path | None:
-    now = datetime.now().strftime("%d%m%y_%H%M%S")
-    out_dir = Config.RUNS_DIR / now
+def generate_logs(pcap_path: Path) -> Path:
+    name = pcap_path.stem
+    out_dir = Config.RUNS_DIR / name
     out_dir.mkdir(parents=True, exist_ok=True)
     out_dir = out_dir.resolve()
 
@@ -64,5 +63,5 @@ def generate_logs(pcap_path: Path) -> Path | None:
     return run(args, out_dir)
 
 
-def process_file(file_path: Path) -> Path | None:
+def process_file(file_path: Path) -> Path:
     return generate_logs(file_path)
