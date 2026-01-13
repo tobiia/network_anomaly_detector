@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict
 import joblib
 from pathlib import Path
 from pandas import DataFrame
@@ -15,7 +15,7 @@ def load_model_package(package_path: Path) -> Dict:
         raise ValueError(f"Bad model package at {package_path}. Expected keys: model, features.")
     return package
 
-def ensure_features(df: DataFrame, expected_features: List[str]) -> DataFrame:
+def ensure_features(df: DataFrame, expected_features: list[str]) -> DataFrame:
     df = df.copy()
     for col in expected_features:
         if col not in df.columns:
@@ -43,10 +43,12 @@ def add_predictions(df: DataFrame, package: Dict):
 def main():
     try:
         file_path = Config.PCAP_PATH
-        log_direct = process_file(file_path)
-
         parser = ParseLogs()
-        dns_connections, tls_connections = parser.parse_logs(log_direct)
+
+        # log dir = temp directory, deleted once logs are parsed
+        with process_file(file_path) as log_dir:
+            dns_connections, tls_connections = parser.parse_logs(log_dir)
+        
         dns_df = parser.to_dataframe(dns_connections)
         tls_df = parser.to_dataframe(tls_connections)
 

@@ -88,25 +88,15 @@ def get_parser() -> ParseLogs:
     return ParseLogs()
 
 # main()
-def parse_pcap_bytes_to_dfs(filename: str, raw_bytes: bytes) -> Tuple[DataFrame, DataFrame]:
-    # REVIEW --> i think the main zeek processor should also use a temp file instead
-    import tempfile
-
+def pcap_to_df(pcap_path: Path) -> Tuple[DataFrame, DataFrame]:
     parser = get_parser()
-
-    with tempfile.TemporaryDirectory() as td:
-        td_path = Path(td)
-        pcap_path = td_path / filename
-        pcap_path.write_bytes(raw_bytes)
-
-        # Create Zeek logs directory from PCAP
-        log_dir = process_file(pcap_path)  # should return path to logs directory
-
+    with process_file(pcap_path) as log_dir:
         dns_conns, tls_conns = parser.parse_logs(log_dir)
-        dns_df = parser.to_dataframe(dns_conns)
-        tls_df = parser.to_dataframe(tls_conns)
 
-        return dns_df, tls_df
+    dns_df = parser.to_dataframe(dns_conns)
+    tls_df = parser.to_dataframe(tls_conns)
+
+    return dns_df, tls_df
 
 
 # UI

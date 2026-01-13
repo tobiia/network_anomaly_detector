@@ -1,10 +1,11 @@
+from contextlib import contextmanager
+from tempfile import mkdtemp
 import os
 import sys
 import shutil
 import subprocess
 from datetime import datetime
 from pathlib import Path
-from typing import List
 from config import Config
 
 
@@ -35,7 +36,7 @@ def get_path(process_name: str = "zeek") -> Path:
         "Could not find Zeek executable. Install Zeek and ensure `zeek` is on PATH"
     )
 
-def run(args: List[str], out_dir: Path) -> Path:
+def run(args: list[str], out_dir: Path) -> Path:
     try:
         output = subprocess.run(args,
                                     cwd=out_dir,
@@ -47,21 +48,23 @@ def run(args: List[str], out_dir: Path) -> Path:
         print(f"Zeek command could not be ran")
         raise e
 
-def generate_logs(pcap_path: Path) -> Path:
-    name = pcap_path.stem
-    out_dir = Config.RUNS_DIR / name
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_dir = out_dir.resolve()
+@contextmanager # --> can use func as a "with" stmt
+# finally clause ensures resource cleanup even with an exception
+def process_file(pcap_path: Path):
+    try:
+        name = pcap_path.stem
+        temp_dir = mkdtemp(prefix=f"{name}_")
+        out_dir = Path(temp_dir)
 
-    args = [
-        str(get_path()),
-        "-b",
-        "-r",
-        str(pcap_path),
-        str(Config.SETUP_DIR / "filter.zeek")
-    ]
-    return run(args, out_dir)
-
-
-def process_file(file_path: Path) -> Path:
-    return generate_logs(file_path)
+        args = [
+            str(get_path()),
+            "-b",
+            "-r",
+            str(pcap_path),
+            str(Config.SETUP_DIR / "filter.zeek")
+        ]
+        
+        yield run(args, out_dir)
+    finally:
+        import shutil
+        shutil.rmtree(temp_dir, ignore_errors=True)
