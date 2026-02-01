@@ -4,7 +4,6 @@ import os
 import sys
 import shutil
 import subprocess
-from datetime import datetime
 from pathlib import Path
 from config import Config
 from shutil import rmtree

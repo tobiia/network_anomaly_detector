@@ -1,9 +1,6 @@
-from __future__ import annotations
-
 from pathlib import Path
 from typing import Dict, Tuple, Optional
 
-import numpy as np
 import pandas as pd
 from pandas import DataFrame
 import streamlit as st
@@ -11,8 +8,7 @@ from streamlit_file_browser import st_file_browser
 
 from setup.zeek import process_file
 from parse.parse_log import ParseLogs
-from config import Config
-from main import load_model_package, ensure_features
+from core import get_model_path, load_model_package, ensure_features, preferred_columns, add_predictions
 
 
 # STATE FUNCTIONS
@@ -39,57 +35,12 @@ def get_active_record() -> Dict:
     name = st.session_state.get("active_pcap")
     return st.session_state["pcaps"].get(name)
 
-
-# ML FUNCTIONS
-
-def predict_with_threshold(
-    df: DataFrame,
-    package: Dict,
-) -> DataFrame:
-    
-    df_pred = df.copy()
-    
-    model = package["model"]
-    expected_features = package["features"]
-    threshold = package["threshold"]
-
-    df_feat = ensure_features(df_pred, expected_features)[expected_features]
-
-    if hasattr(model, "predict_proba"):
-        score = model.predict_proba(df_feat)[:, 1]
-    else:
-        score = model.predict(df_feat).astype(float)
-
-    pred = (score >= threshold).astype(int)
-
-    df_pred["score"] = score
-    df_pred["pred"] = pred
-    df_pred["pred_label"] = np.where(pred == 1, "malicious", "benign")
-    return df_pred
-
-
-def basic_metrics(df: DataFrame) -> Tuple[int, float, int]:
-    if df.empty or "pred" not in df.columns:
-        return 0, 0.0, len(df)
-
-    threats = df[df["pred"] == 1]
-    threat_count = int(len(threats))
-    avg_conf = float(threats["score"].mean()) if threat_count else 0.0
-    benign_count = int((df["pred"] == 0).sum())
-    return threat_count, avg_conf, benign_count
-
-
-def df_to_download(df: DataFrame):
-    return df.to_csv(index=False).encode("utf-8")
-
-
 # PCAP FUNCTIONS
 
 @st.cache_resource
 def get_parser() -> ParseLogs:
     return ParseLogs()
 
-# main()
 def pcap_to_df(pcap_path: Path) -> Tuple[DataFrame, DataFrame]:
     parser = get_parser()
 
@@ -101,25 +52,9 @@ def pcap_to_df(pcap_path: Path) -> Tuple[DataFrame, DataFrame]:
 
     return dns_df, tls_df
 
+def df_to_download(df: DataFrame):
+    return df.to_csv(index=False).encode("utf-8")
 
-# HELPERS --> move to utils?
-
-def get_model_path(flow_type: str) -> Path:
-    if flow_type == "dns":
-        return Path(Config.MODEL_DIR) / "dns_model_package.pkl"
-    return Path(Config.MODEL_DIR) / "tls_model_package.pkl"
-
-
-def preferred_columns(df: DataFrame) -> list[str]:
-    preferred = [
-        "ts", "id_orig_h", "id_resp_h","id_resp_p", "id_resp_p",
-        "orig_bytes", "resp_bytes", "orig_pkts", "resp_pkts",
-        "query", "qclass", "qtype", "rcode",
-        "version", "server_name"
-        "score", "pred_label"
-    ]
-    cols = [c for c in preferred if c in df.columns]
-    return cols if cols else df.columns.tolist()
 
 # UI
 
@@ -167,6 +102,9 @@ def main():
         st.header("Settings")
         flow_choice = st.selectbox("View", ["dns", "tls"])
         st.divider()
+        st.write("You can switch between the DNS and TLS flows using the toggle switch above.")
+
+        st.info("Make sure to only use on networks where you have authorization to monitor traffic. Have fun!")
 
     st.info("Welcome to **Infer-IDS**! This is a simple machine learning-based system for identifying malicious DNS and TLS network traffic. It analyzes network flows captured in PCAP format, extracts behavioral features, and uses trained XGBoost classifiers to detect potential threats with high recall performance.")
 
@@ -213,7 +151,7 @@ def main():
     df_current = record[flow_choice]
 
     st.divider()
-    st.info("You can now explore your network flows and see the classification results! You can also toggle between the DNS and TLS flows using the sidebar.")
+    st.info("You can now explore your network flows and see the classification results!")
     st.subheader(f"{flow_choice.upper()} View")
 
     pkg_path = get_model_path(flow_choice)
@@ -228,7 +166,8 @@ def main():
     if should_predict:
         try:
             package = load_model_package(pkg_path)
-            df_pred = predict_with_threshold(df_current, package)
+            df_current = ensure_features(df_current, package["features"])
+            df_pred = add_predictions(df_current, package)
             record[flow_choice] = df_pred
             record["pred_done"][flow_choice] = True
         except Exception as e:
@@ -237,8 +176,6 @@ def main():
 
     # ensures table is rendered based on user toggle choice
     render_table(record[flow_choice])
-
-
 
 if __name__ == "__main__":
     main()

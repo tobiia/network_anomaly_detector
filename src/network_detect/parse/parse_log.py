@@ -4,7 +4,6 @@ from typing import Dict, Tuple
 import pandas as pd
 
 from utils import iter_log
-from config import Config
 from .base_connection import Connection
 from .dns_connection import DNSConnection
 from .tls_connection import TLSConnection
