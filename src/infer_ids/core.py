@@ -17,7 +17,7 @@ def get_model_path(flow_type: str) -> Path:
 
 def preferred_columns(df: DataFrame) -> list[str]:
     preferred = [
-        "ts", "id_orig_h", "id_resp_h","id_resp_p", "id_resp_p",
+        "ts", "ts_iso", "orig_h", "resp_h","orig_p", "resp_p",
         "orig_bytes", "resp_bytes", "orig_pkts", "resp_pkts",
         "query", "qclass", "qtype", "rcode",
         "version", "server_name"

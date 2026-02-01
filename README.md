@@ -10,6 +10,10 @@ Infer-IDS is a machine learning-based system for identifying malicious DNS and T
 - Real-time Analysis: Process and classify network traffic in real-time
 - Comprehensive Logging: Detailed audit trails and prediction logging
 
+## Visual
+
+![](src/infer_ids/public/infer_ids.gif)
+
 ## Installation
 
 Linux/macOS:
@@ -19,7 +23,7 @@ git clone https://github.com/tobiia/infer_IDS.git
 cd infer_ids
 
 # Create and activate a virtual environment
-python3 -m venv .venv
+python3 -m venv ./.venv
 source .venv/bin/activate
 
 # Upgrade pip and install dependencies
